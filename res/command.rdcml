@@ -1,0 +1,7 @@
+geckospace {
+    reload {
+        permission geckospace.reload
+        help Reload the config
+        hook reload
+    }
+}
