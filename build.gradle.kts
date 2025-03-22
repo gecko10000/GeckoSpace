@@ -24,7 +24,6 @@ bukkit {
     main = "$group.$name"
     apiVersion = "1.13"
     depend = listOf("GeckoLib", "Nexo")
-    //libraries = listOf("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")
 }
 
 repositories {
