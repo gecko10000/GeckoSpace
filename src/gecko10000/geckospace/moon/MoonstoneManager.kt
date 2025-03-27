@@ -69,9 +69,12 @@ class MoonstoneManager : MyKoinComponent {
 
     init {
         CoroutineScope(Dispatchers.IO).launch {
-            while (plugin.isEnabled) {
+            while (true) {
                 delay(plugin.config.moonstoneGrowSeconds.seconds)
-                Task.syncDelayed { -> tickEmptyMoonstones() }
+                if (plugin.isEnabled)
+                    Task.syncDelayed { -> tickEmptyMoonstones() }
+                else
+                    break
             }
         }
         for (world in Bukkit.getWorlds()) {
