@@ -20,5 +20,9 @@ data class Config(
         "minute (including when unloaded).",
         "Chance for growth is 1/<moonstone-grow-rarity>."
     )
-    val moonstoneGrowRarity: Int = 1000
+    val moonstoneGrowRarity: Int = 1000,
+    val crackedBedrockId: String = "cracked_bedrock",
+    val terraPackIds: Map<String, String> = mapOf(
+        "moon" to "moon",
+    )
 )

@@ -1,4 +1,4 @@
-package gecko10000.geckospace.moon
+package gecko10000.geckospace.dimensions.moon
 
 import com.nexomc.nexo.api.NexoBlocks
 import com.nexomc.nexo.api.NexoItems
