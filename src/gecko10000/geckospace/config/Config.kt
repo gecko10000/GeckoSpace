@@ -22,6 +22,7 @@ data class Config(
     )
     val moonstoneGrowRarity: Int = 1000,
     val crackedBedrockId: String = "cracked_bedrock",
+    val bedrockBreakTntAmount: Int = 8,
     val terraPackIds: Map<String, String> = mapOf(
         "moon" to "moon",
     )

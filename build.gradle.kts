@@ -23,7 +23,7 @@ bukkit {
     name = "GeckoSpace"
     main = "$group.$name"
     apiVersion = "1.13"
-    depend = listOf("GeckoLib", "Nexo")
+    depend = listOf("GeckoLib", "Nexo", "Citizens")
 }
 
 repositories {
@@ -31,6 +31,7 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://redempt.dev/")
     maven("https://repo.nexomc.com/releases")
+    maven("https://maven.citizensnpcs.co/repo")
     mavenLocal()
 }
 
@@ -39,6 +40,7 @@ dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly("gecko10000.geckolib:GeckoLib:1.0-SNAPSHOT")
     compileOnly("com.nexomc:nexo:1.1.0")
+    compileOnly("net.citizensnpcs:citizensapi:2.0.37-SNAPSHOT")
 }
 
 kotlin {
