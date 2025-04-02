@@ -40,7 +40,10 @@ dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly("gecko10000.geckolib:GeckoLib:1.0-SNAPSHOT")
     compileOnly("com.nexomc:nexo:1.1.0")
-    compileOnly("net.citizensnpcs:citizensapi:2.0.37-SNAPSHOT")
+    // https://wiki.citizensnpcs.co/API#Gradle
+    compileOnly("net.citizensnpcs:citizens-main:2.0.37-SNAPSHOT") {
+        exclude(group = "*", module = "*")
+    }
 }
 
 kotlin {

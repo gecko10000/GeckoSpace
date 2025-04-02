@@ -14,9 +14,10 @@ import org.bukkit.block.BlockFace
 // ggg
 // ggg
 // r: redstone torch, n: netherrack, g: gold block
-class ShrineChecker(private val fireBlock: Block) {
+class ShrineChecker(val fireBlock: Block) {
 
     val isValid: Boolean
+    val world = fireBlock.world
     private val shrineBlocks = mutableListOf(fireBlock)
     fun getShrineBlocks(): List<Block> = shrineBlocks
     private val bedrockBlocksToCrack = mutableSetOf<Block>()
@@ -33,15 +34,14 @@ class ShrineChecker(private val fireBlock: Block) {
             shrineBlocks += redstoneTorch
         }
         val goldCenter = netherrack.getRelative(BlockFace.DOWN)
-        val bedrockBlocks = mutableSetOf<Block>()
         for (x in -1..1) {
-            for (z in -1..<1) {
+            for (z in -1..1) {
                 val goldBlock = goldCenter.getRelative(x, 0, z)
                 if (goldBlock.type != Material.GOLD_BLOCK) return false
                 shrineBlocks += goldBlock
                 val bedrock = goldBlock.getRelative(BlockFace.DOWN)
                 if (bedrock.type == Material.BEDROCK) {
-                    bedrockBlocks += bedrock
+                    bedrockBlocksToCrack += bedrock
                 }
             }
         }
