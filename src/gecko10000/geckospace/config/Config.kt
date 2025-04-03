@@ -41,5 +41,9 @@ data class Config(
         EntityType.SKELETON,
         EntityType.ZOMBIFIED_PIGLIN,
         EntityType.MAGMA_CUBE,
+    ),
+    val netherWorldPairs: List<Pair<String, String>> = listOf(
+        "world" to "world_nether",
+        "resource" to "resource_nether",
     )
 )

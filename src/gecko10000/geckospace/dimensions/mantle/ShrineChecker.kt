@@ -39,7 +39,7 @@ class ShrineChecker(val fireBlock: Block, val lighter: Player) {
 
     fun getNearbyPlayers(radius: Double) = fireBlock.location.add(0.5, 0.0, 0.5).getNearbyPlayers(radius)
 
-    fun findRandomTopBedrockAroundShrine(): Block {
+    fun findRandomTopBlockAroundShrine(): Block {
         val isXFixed = Random.nextBoolean()
         val x = if (isXFixed) (if (Random.nextBoolean()) -2 else 2) else Random.nextInt(-2, 3)
         val z = if (isXFixed) Random.nextInt(-2, 3) else (if (Random.nextBoolean()) -2 else 2)
@@ -48,7 +48,7 @@ class ShrineChecker(val fireBlock: Block, val lighter: Player) {
         var block = bottomBlock
         for (i in 1..<BEDROCK_LAYERS) {
             block = block.getRelative(BlockFace.UP)
-            if (block.type == Material.BEDROCK) {
+            if (block.type != Material.AIR) {
                 highestBedrock = block
             }
         }

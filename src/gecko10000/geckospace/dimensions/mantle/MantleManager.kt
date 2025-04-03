@@ -6,12 +6,15 @@ import gecko10000.geckolib.extensions.name
 import gecko10000.geckospace.GeckoSpace
 import gecko10000.geckospace.di.MyKoinComponent
 import io.papermc.paper.entity.LookAnchor
+import io.papermc.paper.event.entity.EntityInsideBlockEvent
 import net.citizensnpcs.api.CitizensAPI
 import net.citizensnpcs.api.npc.NPC
 import net.citizensnpcs.trait.SkinTrait
-import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
-import org.bukkit.*
+import org.bukkit.Bukkit
+import org.bukkit.Material
+import org.bukkit.NamespacedKey
+import org.bukkit.Sound
 import org.bukkit.attribute.Attribute
 import org.bukkit.attribute.AttributeModifier
 import org.bukkit.block.Block
@@ -22,15 +25,14 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.block.Action
+import org.bukkit.event.entity.ProjectileHitEvent
 import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.event.player.PlayerTeleportEvent
-import org.bukkit.event.world.EntitiesLoadEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
-import org.joml.Matrix4f
 import org.koin.core.component.inject
 import redempt.redlib.misc.Task
-import java.util.*
+import kotlin.math.ceil
 import kotlin.random.Random
 
 // Mantle is just the nether,
@@ -51,6 +53,10 @@ class MantleManager : MyKoinComponent, Listener {
         if (item?.type != Material.FLINT_AND_STEEL) return
         val shrineChecker = ShrineChecker(block.getRelative(BlockFace.UP), player)
         if (!shrineChecker.isValid) return
+        val isValidWorld = plugin.config.netherWorldPairs.any { it.first == block.world.name }
+        if (!isValidWorld) {
+            return
+        }
         if (shrineChecker.getBedrockBlocksToCrack().isEmpty()) {
             player.sendRichMessage("<red>This only works over bedrock...")
             return
@@ -138,7 +144,7 @@ class MantleManager : MyKoinComponent, Listener {
         for (i in 1..entityMultiplier) {
             for (j in 1..plugin.config.shrineEntityCount) {
                 val type = plugin.config.shrineEntities.random()
-                val spawnLocation = shrineChecker.findRandomTopBedrockAroundShrine()
+                val spawnLocation = shrineChecker.findRandomTopBlockAroundShrine()
                     .getRelative(BlockFace.UP)
                     .location
                     .add(0.5, 0.0, 0.5)
@@ -215,76 +221,72 @@ class MantleManager : MyKoinComponent, Listener {
         }
         val item = item ?: return
         if (item.type != Material.FLINT_AND_STEEL) return
-        block.world.createExplosion(block.location.toCenterLocation(), 10f)
+        Task.syncDelayed { -> blowUpBedrock(block) }
+    }
+
+    @EventHandler
+    private fun ProjectileHitEvent.onFireArrowLand() {
+        val block = hitBlock ?: return
+        if (NexoBlocks.noteBlockMechanic(block)?.itemID != plugin.config.tntBedrockId) {
+            return
+        }
+        if (entity.fireTicks <= 0) {
+            return
+        }
         Task.syncDelayed { -> blowUpBedrock(block) }
     }
 
     private fun blowUpBedrock(block: Block) {
         val onBottom = block.y == block.world.minHeight
-        if (!onBottom) {
-            block.type = Material.AIR
-        } else {
-            placePortal(block)
-        }
-    }
-
-    private fun placePortal(block: Block) {
-        block.type = Material.END_PORTAL
-        updatePortalTextDisplay(block)
-//        block.world.playSound(
-//            block.location.add(0.5, 0.0, 0.5),
-//            Sound.BLOCK_PORTAL_TRIGGER,
-//            SoundCategory.BLOCKS,
-//            1f,
-//            1f
-//        )
+        val newType = if (onBottom) Material.END_PORTAL else Material.AIR
+        block.type = newType
+        block.world.createExplosion(block.location.toCenterLocation(), 10f)
     }
 
     // END OF TNT BEDROCK IGNITING
-    // START OF COLOR FILTER TEXT DISPLAYS
-
-    // Stores text display UUIDs for updating.
-    private val portalTracker = BlockDataManager("nptl", PersistentDataType.STRING, events = false)
-
-    private fun updatePortalTextDisplay(block: Block) {
-        val textDisplayUUID = portalTracker[block]
-        val existingEntity = textDisplayUUID?.let { Bukkit.getEntity(UUID.fromString(it)) } as? TextDisplay
-        if (block.type != Material.END_PORTAL) {
-            plugin.logger.warning("End portal at ${block.location} missing, removing its text display.")
-            portalTracker.remove(block)
-            existingEntity?.remove()
-            return
-        }
-        val display = existingEntity ?: block.world.spawn(block.location, TextDisplay::class.java)
-        display.backgroundColor = Color.fromRGB(0x89008b)
-        display.textOpacity = (0.4 * 256).toInt().toByte()
-        display.text(Component.text(" "))
-        // https://github.com/TheCymaera/minecraft-text-display-experiments/blob/main/src/main/java/com/heledron/text_display_experiments/TextDisplayExperimentsPlugin.kt#L12
-        display.setTransformationMatrix(
-            Matrix4f()
-                .translate(-0.1f + .5f, -0.5f + .5f, 0f)
-                .scale(8.0f, 4.0f, 1f)
-        )
-        portalTracker[block] = display.uniqueId.toString()
-    }
-
-    private fun updateDisplaysInChunk(chunk: Chunk) {
-        for (block in portalTracker.getValuedBlocks(chunk)) {
-            updatePortalTextDisplay(block)
-        }
-    }
+    // START OF PORTAL TELEPORTATION
 
     @EventHandler
-    private fun EntitiesLoadEvent.onPortalTextDisplayLoad() {
-        updateDisplaysInChunk(chunk)
+    private fun EntityInsideBlockEvent.onEndPortalTouch() {
+        val block = this.block
+        if (block.type != Material.END_PORTAL) return
+        isCancelled = true
+        val inOverworld = plugin.config.netherWorldPairs.any { it.first == block.world.name }
+        if (inOverworld) {
+            portalToNether(entity)
+        } else {
+            portalToOverworld(entity)
+        }
     }
 
-    init {
-        Bukkit.getWorlds()
-            .flatMap { it.loadedChunks.toList() }
-            .forEach(::updateDisplaysInChunk)
-        // END OF COLOR FILTER TEXT DISPLAYS
+    private fun portalToNether(entity: Entity) {
+        val worldPair = plugin.config.netherWorldPairs.first { it.first == entity.world.name }
+        val destWorld = Bukkit.getWorld(worldPair.second) ?: return // TODO: uhhh?
+        val sourceBlock = entity.location.block
+        destWorld.getChunkAtAsync(sourceBlock.x / 16, sourceBlock.z / 16)
+            .thenApplyAsync({ chunk ->
+                val topBedrock = destWorld.getHighestBlockAt(sourceBlock.x, sourceBlock.z)
+                val portalLocation = topBedrock.getRelative(BlockFace.DOWN)
+                portalLocation.type = Material.END_PORTAL
+                val entityHeight = ceil(entity.height).toInt()
+                var block = portalLocation
+                // TODO: only clear player-placed blocks
+                // TODO: clear bedrock
+                // TODO: clear entire connected portal?
+                for (i in 0..<entityHeight) {
+                    block = block.getRelative(BlockFace.DOWN)
+                    block.type = Material.AIR
+                }
+            }, Bukkit.getScheduler().getMainThreadExecutor(plugin))
+    }
 
+    private fun portalToOverworld(entity: Entity) {
+
+    }
+
+    // END OF PORTAL TELEPORTATION
+
+    init {
         Bukkit.getPluginManager().registerEvents(this, plugin)
     }
 
