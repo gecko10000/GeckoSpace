@@ -3,18 +3,19 @@ package gecko10000.geckospace.dimensions.mantle
 import com.nexomc.nexo.api.NexoBlocks
 import gecko10000.geckolib.blockdata.BlockDataManager
 import gecko10000.geckolib.extensions.name
+import gecko10000.geckolib.playerplaced.PlayerPlacedBlockTracker
 import gecko10000.geckospace.GeckoSpace
 import gecko10000.geckospace.di.MyKoinComponent
 import io.papermc.paper.entity.LookAnchor
+import io.papermc.paper.entity.TeleportFlag
 import io.papermc.paper.event.entity.EntityInsideBlockEvent
+import io.papermc.paper.math.BlockPosition
+import io.papermc.paper.math.Position
 import net.citizensnpcs.api.CitizensAPI
 import net.citizensnpcs.api.npc.NPC
 import net.citizensnpcs.trait.SkinTrait
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
-import org.bukkit.Bukkit
-import org.bukkit.Material
-import org.bukkit.NamespacedKey
-import org.bukkit.Sound
+import org.bukkit.*
 import org.bukkit.attribute.Attribute
 import org.bukkit.attribute.AttributeModifier
 import org.bukkit.block.Block
@@ -30,13 +31,21 @@ import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.event.player.PlayerTeleportEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
+import org.bukkit.potion.PotionEffect
+import org.bukkit.potion.PotionEffectType
+import org.bukkit.util.Vector
 import org.koin.core.component.inject
 import redempt.redlib.misc.Task
+import java.util.*
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentSkipListSet
+import kotlin.collections.ArrayDeque
 import kotlin.math.ceil
 import kotlin.random.Random
 
 // Mantle is just the nether,
 // with custom entry/exit mechanics.
+@Suppress("UnstableApiUsage")
 class MantleManager : MyKoinComponent, Listener {
 
     private val plugin: GeckoSpace by inject()
@@ -246,42 +255,130 @@ class MantleManager : MyKoinComponent, Listener {
     // END OF TNT BEDROCK IGNITING
     // START OF PORTAL TELEPORTATION
 
+    // Prevent multiple teleportations from touching multiple blocks
+    private val alreadyTeleporting = ConcurrentSkipListSet<UUID>()
+
     @EventHandler
     private fun EntityInsideBlockEvent.onEndPortalTouch() {
         val block = this.block
         if (block.type != Material.END_PORTAL) return
+        if (!alreadyTeleporting.add(entity.uniqueId)) return
         isCancelled = true
         val inOverworld = plugin.config.netherWorldPairs.any { it.first == block.world.name }
         if (inOverworld) {
-            portalToNether(entity)
+            portalToNether(entity, block)
         } else {
-            portalToOverworld(entity)
+            portalToOverworld(entity, block)
         }
     }
 
-    private fun portalToNether(entity: Entity) {
-        val worldPair = plugin.config.netherWorldPairs.first { it.first == entity.world.name }
-        val destWorld = Bukkit.getWorld(worldPair.second) ?: return // TODO: uhhh?
-        val sourceBlock = entity.location.block
-        destWorld.getChunkAtAsync(sourceBlock.x / 16, sourceBlock.z / 16)
-            .thenApplyAsync({ chunk ->
-                val topBedrock = destWorld.getHighestBlockAt(sourceBlock.x, sourceBlock.z)
-                val portalLocation = topBedrock.getRelative(BlockFace.DOWN)
-                portalLocation.type = Material.END_PORTAL
-                val entityHeight = ceil(entity.height).toInt()
-                var block = portalLocation
-                // TODO: only clear player-placed blocks
-                // TODO: clear bedrock
-                // TODO: clear entire connected portal?
-                for (i in 0..<entityHeight) {
-                    block = block.getRelative(BlockFace.DOWN)
-                    block.type = Material.AIR
-                }
-            }, Bukkit.getScheduler().getMainThreadExecutor(plugin))
+    private fun findConnectedPortal(
+        world: World,
+        block: BlockPosition,
+    ): Set<BlockPosition> {
+        val portal = mutableSetOf<BlockPosition>()
+        val visited = mutableSetOf<BlockPosition>()
+        val queue = ArrayDeque<BlockPosition>()
+        queue += block
+        while (queue.isNotEmpty()) {
+            val nextPos = queue.removeFirst()
+            val added = visited.add(nextPos)
+            if (!added) continue
+            if (nextPos.toLocation(world).block.type != Material.END_PORTAL) continue
+            portal += nextPos
+            for (face in setOf(BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST)) {
+                queue += nextPos.offset(face)
+            }
+        }
+        return portal
     }
 
-    private fun portalToOverworld(entity: Entity) {
+    // The 3 blocks below the portal block may be bedrock.
+    private fun clearTopBedrock(portalBlock: Block) {
+        var block = portalBlock
+        for (i in 1..3) {
+            block = block.getRelative(BlockFace.DOWN)
+            if (block.type == Material.BEDROCK) {
+                block.type = Material.NETHERRACK
+            }
+        }
+    }
 
+    // Clears enough room for the entity,
+    // but only removes non-player-placed blocks.
+    private fun makeRoomFor(entity: Entity, portalBlock: Block) {
+        val entityHeight = ceil(entity.height).toInt()
+        var block = portalBlock
+        for (i in 0..<entityHeight) {
+            block = block.getRelative(BlockFace.DOWN)
+            if (PlayerPlacedBlockTracker.isPlayerPlaced(block)) continue
+            block.type = Material.AIR
+        }
+    }
+
+    private fun portalToNether(entity: Entity, block: Block) {
+        val worldPair = plugin.config.netherWorldPairs.first { it.first == entity.world.name }
+        val destWorld = Bukkit.getWorld(worldPair.second) ?: return // NOTTODO: not my problem
+        val portalBlockPositions = findConnectedPortal(block.world, Position.block(block.location))
+        val bottomBlocks = portalBlockPositions.map { it.toLocation(destWorld).block }
+        val chunkKeysToLoad = bottomBlocks.map { it.x / 16 to it.z / 16 }.distinct()
+        val chunkLoadFutures = chunkKeysToLoad.map { destWorld.getChunkAtAsync(it.first, it.second) }
+        CompletableFuture.allOf(*chunkLoadFutures.toTypedArray())
+            .thenCompose {
+                val portalBlocks =
+                    bottomBlocks.map { destWorld.getHighestBlockAt(it.x, it.z).getRelative(BlockFace.DOWN) }
+                portalBlocks.forEach {
+                    it.type = Material.END_PORTAL
+                    clearTopBedrock(it)
+                    makeRoomFor(entity, it)
+                }
+                val height = ceil(entity.height).toInt()
+                val destLocation = entity.location.clone()
+                destLocation.world = destWorld
+                destLocation.y = portalBlocks.first().y.toDouble() - height
+                entity.fallDistance = 0f // because I'm so nice
+                return@thenCompose entity.teleportAsync(destLocation).thenRun {
+                    alreadyTeleporting.remove(entity.uniqueId)
+                }
+            }.handle { _, ex ->
+                ex.printStackTrace()
+            }
+    }
+
+    private fun portalToOverworld(entity: Entity, block: Block) {
+        val worldPair = plugin.config.netherWorldPairs.first { it.second == entity.world.name }
+        val destWorld = Bukkit.getWorld(worldPair.first) ?: return
+        val portalBlockPositions = findConnectedPortal(block.world, Position.block(block.location))
+        val topBlocks = portalBlockPositions.map { it.toLocation(destWorld).block }
+        val chunkKeysToLoad = topBlocks.map { it.x / 16 to it.z / 16 }.distinct()
+        val chunkLoadFutures = chunkKeysToLoad.map { destWorld.getChunkAtAsync(it.first, it.second) }
+        CompletableFuture.allOf(*chunkLoadFutures.toTypedArray())
+            .thenCompose {
+                // No clearing
+                val destLocation = entity.location.clone()
+                destLocation.world = destWorld
+                destLocation.y = destWorld.minHeight + 1.0
+                (entity as? LivingEntity)?.addPotionEffect(
+                    PotionEffect(
+                        PotionEffectType.SLOW_FALLING,
+                        5 * 20, 1
+                    )
+                )
+                return@thenCompose entity.teleportAsync(
+                    destLocation,
+                    PlayerTeleportEvent.TeleportCause.PLUGIN,
+                    TeleportFlag.Relative.VELOCITY_X,
+                    TeleportFlag.Relative.VELOCITY_Y,
+                    TeleportFlag.Relative.VELOCITY_Z,
+                ).thenRun {
+                    Task.syncDelayed { ->
+                        entity.velocity = entity.velocity.add(Vector(0f, 1f, 0f))
+                    }
+                    alreadyTeleporting.remove(entity.uniqueId)
+                }
+            }.handle { _, ex ->
+                ex.printStackTrace()
+            }
     }
 
     // END OF PORTAL TELEPORTATION
