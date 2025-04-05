@@ -7,8 +7,8 @@ import gecko10000.geckolib.playerplaced.PlayerPlacedBlockTracker
 import gecko10000.geckospace.GeckoSpace
 import gecko10000.geckospace.di.MyKoinComponent
 import io.papermc.paper.entity.LookAnchor
-import io.papermc.paper.entity.TeleportFlag
 import io.papermc.paper.event.entity.EntityInsideBlockEvent
+import io.papermc.paper.event.entity.EntityMoveEvent
 import io.papermc.paper.math.BlockPosition
 import io.papermc.paper.math.Position
 import net.citizensnpcs.api.CitizensAPI
@@ -26,14 +26,16 @@ import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.block.Action
+import org.bukkit.event.block.BlockExplodeEvent
+import org.bukkit.event.entity.EntityExplodeEvent
 import org.bukkit.event.entity.ProjectileHitEvent
 import org.bukkit.event.player.PlayerInteractEvent
+import org.bukkit.event.player.PlayerMoveEvent
 import org.bukkit.event.player.PlayerTeleportEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
-import org.bukkit.util.Vector
 import org.koin.core.component.inject
 import redempt.redlib.misc.Task
 import java.util.*
@@ -193,6 +195,7 @@ class MantleManager : MyKoinComponent, Listener {
     private fun PlayerInteractEvent.onPackTNTIntoCrackedBedrock() {
         if (useItemInHand() == Event.Result.DENY) return
         if (action != Action.RIGHT_CLICK_BLOCK) return
+        if (player.isSneaking) return
         val block = clickedBlock ?: return
         if (NexoBlocks.noteBlockMechanic(block)?.itemID != plugin.config.crackedBedrockId) {
             return
@@ -229,6 +232,10 @@ class MantleManager : MyKoinComponent, Listener {
             return
         }
         val item = item ?: return
+        if (item.type == Material.TNT && !player.isSneaking) {
+            isCancelled = true
+            return
+        }
         if (item.type != Material.FLINT_AND_STEEL) return
         Task.syncDelayed { -> blowUpBedrock(block) }
     }
@@ -252,6 +259,22 @@ class MantleManager : MyKoinComponent, Listener {
         block.world.createExplosion(block.location.toCenterLocation(), 10f)
     }
 
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    private fun BlockExplodeEvent.onBlockExplode() {
+        for (block in blockList()) {
+            if (NexoBlocks.noteBlockMechanic(block)?.itemID != plugin.config.tntBedrockId) continue
+            blowUpBedrock(block)
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    private fun EntityExplodeEvent.onEntityExplode() {
+        for (block in blockList()) {
+            if (NexoBlocks.noteBlockMechanic(block)?.itemID != plugin.config.tntBedrockId) continue
+            blowUpBedrock(block)
+        }
+    }
+
     // END OF TNT BEDROCK IGNITING
     // START OF PORTAL TELEPORTATION
 
@@ -262,6 +285,7 @@ class MantleManager : MyKoinComponent, Listener {
     private fun EntityInsideBlockEvent.onEndPortalTouch() {
         val block = this.block
         if (block.type != Material.END_PORTAL) return
+        if (justTeleportedBack.contains(entity.uniqueId)) return
         if (!alreadyTeleporting.add(entity.uniqueId)) return
         isCancelled = true
         val inOverworld = plugin.config.netherWorldPairs.any { it.first == block.world.name }
@@ -296,7 +320,7 @@ class MantleManager : MyKoinComponent, Listener {
     // The 3 blocks below the portal block may be bedrock.
     private fun clearTopBedrock(portalBlock: Block) {
         var block = portalBlock
-        for (i in 1..3) {
+        for (i in 1..4) {
             block = block.getRelative(BlockFace.DOWN)
             if (block.type == Material.BEDROCK) {
                 block.type = Material.NETHERRACK
@@ -326,7 +350,7 @@ class MantleManager : MyKoinComponent, Listener {
         CompletableFuture.allOf(*chunkLoadFutures.toTypedArray())
             .thenCompose {
                 val portalBlocks =
-                    bottomBlocks.map { destWorld.getHighestBlockAt(it.x, it.z).getRelative(BlockFace.DOWN) }
+                    bottomBlocks.map { destWorld.getHighestBlockAt(it.x, it.z, HeightMap.WORLD_SURFACE) }
                 portalBlocks.forEach {
                     it.type = Material.END_PORTAL
                     clearTopBedrock(it)
@@ -345,6 +369,8 @@ class MantleManager : MyKoinComponent, Listener {
             }
     }
 
+    private val justTeleportedBack = mutableSetOf<UUID>()
+
     private fun portalToOverworld(entity: Entity, block: Block) {
         val worldPair = plugin.config.netherWorldPairs.first { it.second == entity.world.name }
         val destWorld = Bukkit.getWorld(worldPair.first) ?: return
@@ -358,27 +384,45 @@ class MantleManager : MyKoinComponent, Listener {
                 val destLocation = entity.location.clone()
                 destLocation.world = destWorld
                 destLocation.y = destWorld.minHeight + 1.0
-                (entity as? LivingEntity)?.addPotionEffect(
-                    PotionEffect(
-                        PotionEffectType.SLOW_FALLING,
-                        5 * 20, 1
-                    )
-                )
                 return@thenCompose entity.teleportAsync(
                     destLocation,
                     PlayerTeleportEvent.TeleportCause.PLUGIN,
-                    TeleportFlag.Relative.VELOCITY_X,
-                    TeleportFlag.Relative.VELOCITY_Y,
-                    TeleportFlag.Relative.VELOCITY_Z,
                 ).thenRun {
-                    Task.syncDelayed { ->
-                        entity.velocity = entity.velocity.add(Vector(0f, 1f, 0f))
-                    }
+                    justTeleportedBack += entity.uniqueId
                     alreadyTeleporting.remove(entity.uniqueId)
                 }
             }.handle { _, ex ->
                 ex.printStackTrace()
             }
+    }
+
+    private fun moveAfterPortal(isHorizOrDown: () -> Boolean, entity: Entity): Boolean {
+        val didJustTeleport = justTeleportedBack.contains(entity.uniqueId)
+        if (!didJustTeleport) return false
+        if (isHorizOrDown()) {
+            // Moving down, prevent and set velocity again
+            Task.syncDelayed { ->
+                entity.velocity = entity.velocity.setY(1)
+                (entity as? LivingEntity)?.addPotionEffect(PotionEffect(PotionEffectType.SLOW_FALLING, 2 * 20, 0))
+            }
+            return true
+        } else {
+            // Moving up
+            justTeleportedBack.remove(entity.uniqueId)
+            return false
+        }
+    }
+
+    // Prevent player from falling until he has moved up.
+    @EventHandler(ignoreCancelled = true)
+    private fun PlayerMoveEvent.onMoveAfterPortal() {
+        isCancelled = moveAfterPortal({ to.y <= from.y }, player)
+    }
+
+    // and any entity.
+    @EventHandler(ignoreCancelled = true)
+    private fun EntityMoveEvent.onMoveAfterPortal() {
+        isCancelled = moveAfterPortal({ to.y <= from.y }, entity)
     }
 
     // END OF PORTAL TELEPORTATION
