@@ -55,8 +55,6 @@ data class Config(
     val unsafeBlockTypes: Set<Material> = setOf(
         Material.CACTUS,
         Material.LAVA,
-        Material.AIR,
-        Material.CAVE_AIR,
-        Material.VOID_AIR
-    )
+    ),
+    val dimensionShifterDelayTicks: Int = 60,
 )

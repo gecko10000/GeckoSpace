@@ -6,6 +6,7 @@ import gecko10000.geckospace.GeckoSpace
 import gecko10000.geckospace.di.MyKoinComponent
 import org.bukkit.Bukkit
 import org.bukkit.Location
+import org.bukkit.Material
 import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.block.BlockFace
@@ -14,8 +15,10 @@ import org.bukkit.event.Listener
 import org.bukkit.event.block.Action
 import org.bukkit.event.player.PlayerInteractEvent
 import org.koin.core.component.inject
+import redempt.redlib.misc.Task
 import java.util.*
 import java.util.concurrent.CompletableFuture
+import kotlin.math.max
 
 class ShifterManager : MyKoinComponent, Listener {
 
@@ -37,9 +40,9 @@ class ShifterManager : MyKoinComponent, Listener {
             curr = curr.getRelative(BlockFace.DOWN)
         }
         while (curr.y >= block.world.minHeight) {
-            if (curr.type !in plugin.config.unsafeBlockTypes
-                && prev.type.isAir
-                && prev.getRelative(BlockFace.UP).type.isAir
+            if (curr.type !in plugin.config.unsafeBlockTypes && (curr.type == Material.WATER || curr.isSolid)
+                && !prev.type.isCollidable && prev.type != Material.LAVA
+                && !prev.getRelative(BlockFace.UP).isCollidable && prev.getRelative(BlockFace.UP).type !in plugin.config.unsafeBlockTypes
             ) {
                 return curr.location.add(0.5, 1.0, 0.5)
             }
@@ -68,15 +71,23 @@ class ShifterManager : MyKoinComponent, Listener {
         }
         val destColumnBlock = destWorld.getBlockAt(player.location)
         alreadyTeleporting += player.uniqueId
+        val startTick = plugin.server.currentTick
         getSafeSpot(destColumnBlock).thenApply { dest ->
             dest ?: return@thenApply run {
                 alreadyTeleporting -= player.uniqueId
                 player.sendActionBar(parseMM("<red>It's not safe to shift here... Try another spot!"))
             }
-            player.teleportAsync(dest).thenRun {
-                alreadyTeleporting -= player.uniqueId
-                player.sendActionBar(parseMM("<green>Shift successful."))
-            }
+            val taskStartTick = plugin.server.currentTick
+            val elapsedTicks = taskStartTick - startTick
+            val delay = max(0, plugin.config.dimensionShifterDelayTicks - elapsedTicks)
+            // TODO: effect for warmup? Maybe centralized system.
+            Task.syncDelayed({ ->
+                dest.setRotation(player.yaw, player.pitch)
+                player.teleportAsync(dest).thenRun {
+                    alreadyTeleporting -= player.uniqueId
+                    player.sendActionBar(parseMM("<green>Shift successful."))
+                }
+            }, delay.toLong())
         }
     }
 
