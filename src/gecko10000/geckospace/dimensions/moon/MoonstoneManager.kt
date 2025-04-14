@@ -14,17 +14,18 @@ import kotlinx.coroutines.launch
 import org.bukkit.Bukkit
 import org.bukkit.Chunk
 import org.bukkit.block.Block
+import org.bukkit.event.EventHandler
+import org.bukkit.event.Listener
 import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.world.ChunkLoadEvent
 import org.bukkit.persistence.PersistentDataType
 import org.koin.core.component.inject
-import redempt.redlib.misc.EventListener
 import redempt.redlib.misc.Task
 import java.math.BigDecimal
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
-class MoonstoneManager : MyKoinComponent {
+class MoonstoneManager : MyKoinComponent, Listener {
 
     private val plugin: GeckoSpace by inject()
 
@@ -67,6 +68,42 @@ class MoonstoneManager : MyKoinComponent {
         bdm.getValuedBlocks(chunk).forEach(::catchup)
     }
 
+    @EventHandler
+    private fun ChunkLoadEvent.onChunkLoad() {
+        updateChunk(this.chunk)
+    }
+
+    @EventHandler
+    private fun BlockBreakEvent.onMoonstoneBreak() {
+        if (isCancelled) return
+        val location = block.location
+        val nexoId = NexoBlocks.customBlockMechanic(location)?.itemID ?: return
+        // Prevent breaking empty moonstones
+        if (nexoId == plugin.config.moonstoneEmptyId) {
+            isCancelled = true
+            if (!bdm.contains(block)) {
+                bdm[block] = System.currentTimeMillis()
+            }
+            return
+        }
+        // Break full ones by replacing with an empty one
+        // and dropping the item if mined with the right block.
+        if (nexoId == plugin.config.moonstoneFullId) {
+            isCancelled = true
+            NexoBlocks.place(plugin.config.moonstoneEmptyId, location)
+            bdm[block] = System.currentTimeMillis()
+
+            val usedItem = player.inventory.itemInMainHand
+            val isRightTier = ToolTier.fromItemStack(usedItem)?.isAtLeast(plugin.config.moonstoneMinTier) == true
+            val isRightTool = ToolType.fromItemStack(usedItem) == ToolType.PICKAXE
+            player.damageItemStack(usedItem, 1)
+            if (isRightTool && isRightTier) {
+                val moonstone = NexoItems.itemFromId(plugin.config.moonstoneItemId)?.build() ?: return
+                location.world.dropItem(location.clone().add(0.5, 1.0, 0.5), moonstone)
+            }
+        }
+    }
+
     init {
         CoroutineScope(Dispatchers.IO).launch {
             while (true) {
@@ -82,36 +119,7 @@ class MoonstoneManager : MyKoinComponent {
                 updateChunk(chunk)
             }
         }
-        EventListener(ChunkLoadEvent::class.java) { e -> updateChunk(e.chunk) }
-        EventListener(BlockBreakEvent::class.java) { e ->
-            if (e.isCancelled) return@EventListener
-            val location = e.block.location
-            val nexoId = NexoBlocks.customBlockMechanic(location)?.itemID ?: return@EventListener
-            // Prevent breaking empty moonstones
-            if (nexoId == plugin.config.moonstoneEmptyId) {
-                e.isCancelled = true
-                if (!bdm.contains(e.block)) {
-                    bdm[e.block] = System.currentTimeMillis()
-                }
-                return@EventListener
-            }
-            // Break full ones by replacing with an empty one
-            // and dropping the item if mined with the right block.
-            if (nexoId == plugin.config.moonstoneFullId) {
-                e.isCancelled = true
-                NexoBlocks.place(plugin.config.moonstoneEmptyId, location)
-                bdm[e.block] = System.currentTimeMillis()
-
-                val usedItem = e.player.inventory.itemInMainHand
-                val isRightTier = ToolTier.fromItemStack(usedItem)?.isAtLeast(plugin.config.moonstoneMinTier) == true
-                val isRightTool = ToolType.fromItemStack(usedItem) == ToolType.PICKAXE
-                e.player.damageItemStack(usedItem, 1)
-                if (isRightTool && isRightTier) {
-                    val moonstone = NexoItems.itemFromId(plugin.config.moonstoneItemId)?.build() ?: return@EventListener
-                    location.world.dropItem(location.clone().add(0.5, 1.0, 0.5), moonstone)
-                }
-            }
-        }
+        plugin.server.pluginManager.registerEvents(this, plugin)
     }
 
 }
