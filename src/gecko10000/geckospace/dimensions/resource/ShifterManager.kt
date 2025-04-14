@@ -66,12 +66,12 @@ class ShifterManager : MyKoinComponent, Listener {
         val destWorld = getOppositeWorld(sourceWorld) ?: return run {
             player.sendActionBar(parseMM("<red>You can't use this here..."))
         }
-        val destColumnBlock = destWorld.getBlockAt(player.x.toInt(), 0, player.z.toInt())
+        val destColumnBlock = destWorld.getBlockAt(player.location)
         alreadyTeleporting += player.uniqueId
         getSafeSpot(destColumnBlock).thenApply { dest ->
             dest ?: return@thenApply run {
                 alreadyTeleporting -= player.uniqueId
-                player.sendActionBar(parseMM("<red>It's not safe to shift here..."))
+                player.sendActionBar(parseMM("<red>It's not safe to shift here... Try another spot!"))
             }
             player.teleportAsync(dest).thenRun {
                 alreadyTeleporting -= player.uniqueId
