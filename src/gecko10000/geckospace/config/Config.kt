@@ -3,6 +3,7 @@ package gecko10000.geckospace.config
 import com.charleskorn.kaml.YamlComment
 import gecko10000.geckospace.util.ToolTier
 import kotlinx.serialization.Serializable
+import org.bukkit.Material
 import org.bukkit.entity.EntityType
 
 @Serializable
@@ -42,8 +43,20 @@ data class Config(
         EntityType.ZOMBIFIED_PIGLIN,
         EntityType.MAGMA_CUBE,
     ),
-    val netherWorldPairs: List<Pair<String, String>> = listOf(
+    val netherWorldPairs: Map<String, String> = mapOf(
         "world" to "world_nether",
         "resource" to "resource_nether",
+    ),
+    val dimensionShifterItemId: String = "dimension_shifter",
+    val resourceWorldPairs: Map<String, String> = mapOf(
+        "world" to "resource",
+        "world_nether" to "resource_nether",
+    ),
+    val unsafeBlockTypes: Set<Material> = setOf(
+        Material.CACTUS,
+        Material.LAVA,
+        Material.AIR,
+        Material.CAVE_AIR,
+        Material.VOID_AIR
     )
 )

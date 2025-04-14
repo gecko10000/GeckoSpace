@@ -64,7 +64,7 @@ class MantleManager : MyKoinComponent, Listener {
         if (item?.type != Material.FLINT_AND_STEEL) return
         val shrineChecker = ShrineChecker(block.getRelative(BlockFace.UP), player)
         if (!shrineChecker.isValid) return
-        val isValidWorld = plugin.config.netherWorldPairs.any { it.first == block.world.name }
+        val isValidWorld = plugin.config.netherWorldPairs.any { it.key == block.world.name }
         if (!isValidWorld) {
             return
         }
@@ -288,7 +288,7 @@ class MantleManager : MyKoinComponent, Listener {
         if (justTeleportedBack.contains(entity.uniqueId)) return
         if (!alreadyTeleporting.add(entity.uniqueId)) return
         isCancelled = true
-        val inOverworld = plugin.config.netherWorldPairs.any { it.first == block.world.name }
+        val inOverworld = plugin.config.netherWorldPairs.any { it.key == block.world.name }
         if (inOverworld) {
             portalToNether(entity, block)
         } else {
@@ -341,8 +341,8 @@ class MantleManager : MyKoinComponent, Listener {
     }
 
     private fun portalToNether(entity: Entity, block: Block) {
-        val worldPair = plugin.config.netherWorldPairs.first { it.first == entity.world.name }
-        val destWorld = Bukkit.getWorld(worldPair.second) ?: return // NOTTODO: not my problem
+        val worldPair = plugin.config.netherWorldPairs.entries.first { it.key == entity.world.name }
+        val destWorld = Bukkit.getWorld(worldPair.value) ?: return // NOTTODO: not my problem
         val portalBlockPositions = findConnectedPortal(block.world, Position.block(block.location))
         val bottomBlocks = portalBlockPositions.map { it.toLocation(destWorld).block }
         val chunkKeysToLoad = bottomBlocks.map { it.x / 16 to it.z / 16 }.distinct()
@@ -372,8 +372,8 @@ class MantleManager : MyKoinComponent, Listener {
     private val justTeleportedBack = mutableSetOf<UUID>()
 
     private fun portalToOverworld(entity: Entity, block: Block) {
-        val worldPair = plugin.config.netherWorldPairs.first { it.second == entity.world.name }
-        val destWorld = Bukkit.getWorld(worldPair.first) ?: return
+        val worldPair = plugin.config.netherWorldPairs.entries.first { it.value == entity.world.name }
+        val destWorld = Bukkit.getWorld(worldPair.key) ?: return
         val portalBlockPositions = findConnectedPortal(block.world, Position.block(block.location))
         val topBlocks = portalBlockPositions.map { it.toLocation(destWorld).block }
         val chunkKeysToLoad = topBlocks.map { it.x / 16 to it.z / 16 }.distinct()
