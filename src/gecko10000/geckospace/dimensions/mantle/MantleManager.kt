@@ -32,6 +32,7 @@ import org.bukkit.event.entity.ProjectileHitEvent
 import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.event.player.PlayerMoveEvent
 import org.bukkit.event.player.PlayerTeleportEvent
+import org.bukkit.event.world.PortalCreateEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.potion.PotionEffect
@@ -426,6 +427,16 @@ class MantleManager : MyKoinComponent, Listener {
     }
 
     // END OF PORTAL TELEPORTATION
+    // START OF VANILLA PORTAL DISABLE
+    @EventHandler(ignoreCancelled = true)
+    private fun PortalCreateEvent.onNetherPortalLight() {
+        if (this.reason != PortalCreateEvent.CreateReason.FIRE) return
+        isCancelled = true
+        if (this.entity != null) {
+            // TODO: journal entry
+        }
+    }
+    // END OF VANILLA PORTAL DISABLE
 
     init {
         Bukkit.getPluginManager().registerEvents(this, plugin)
