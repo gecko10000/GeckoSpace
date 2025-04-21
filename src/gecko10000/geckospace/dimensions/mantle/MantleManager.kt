@@ -8,7 +8,6 @@ import gecko10000.geckospace.GeckoSpace
 import gecko10000.geckospace.di.MyKoinComponent
 import io.papermc.paper.entity.LookAnchor
 import io.papermc.paper.event.entity.EntityInsideBlockEvent
-import io.papermc.paper.event.entity.EntityMoveEvent
 import io.papermc.paper.math.BlockPosition
 import io.papermc.paper.math.Position
 import net.citizensnpcs.api.CitizensAPI
@@ -385,11 +384,15 @@ class MantleManager : MyKoinComponent, Listener {
                 val destLocation = entity.location.clone()
                 destLocation.world = destWorld
                 destLocation.y = destWorld.minHeight + 1.0
+                val currentVelocity = entity.velocity
                 return@thenCompose entity.teleportAsync(
                     destLocation,
                     PlayerTeleportEvent.TeleportCause.PLUGIN,
                 ).thenRun {
-                    justTeleportedBack += entity.uniqueId
+                    if (entity is Player) {
+                        justTeleportedBack += entity.uniqueId
+                    }
+                    entity.velocity = currentVelocity.setY(1)
                     alreadyTeleporting.remove(entity.uniqueId)
                 }
             }.handle { _, ex ->
@@ -420,11 +423,13 @@ class MantleManager : MyKoinComponent, Listener {
         isCancelled = moveAfterPortal({ to.y <= from.y }, player)
     }
 
+    /* UNNEEDED: ONLY PLAYERS ARE STUPID
     // and any entity.
     @EventHandler(ignoreCancelled = true)
     private fun EntityMoveEvent.onMoveAfterPortal() {
         isCancelled = moveAfterPortal({ to.y <= from.y }, entity)
     }
+     */
 
     // END OF PORTAL TELEPORTATION
     // START OF VANILLA PORTAL DISABLE
