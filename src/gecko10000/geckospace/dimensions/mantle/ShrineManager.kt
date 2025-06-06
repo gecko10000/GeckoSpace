@@ -142,16 +142,6 @@ class ShrineManager : MyKoinComponent, Listener {
                     .add(0.5, 0.0, 0.5)
                 val entity = shrineChecker.world.spawnEntity(spawnLocation, type)
                 (entity as? MagmaCube)?.size = 3
-                (entity as? Ghast)?.let {
-                    val scaleAttr = it.getAttribute(Attribute.SCALE)!!
-                    scaleAttr.addModifier(
-                        AttributeModifier(
-                            NamespacedKey(plugin, "scale"),
-                            0.25 - 1,
-                            AttributeModifier.Operation.MULTIPLY_SCALAR_1
-                        )
-                    )
-                }
                 (entity as? Mob)?.target = nearbyPlayers.randomOrNull()
 
             }

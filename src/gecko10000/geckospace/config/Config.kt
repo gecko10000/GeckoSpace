@@ -37,7 +37,6 @@ data class Config(
     val shrineEntities: Set<EntityType> = setOf(
         EntityType.WITHER_SKELETON,
         EntityType.PIGLIN_BRUTE,
-        EntityType.GHAST,
         EntityType.BLAZE,
         EntityType.SKELETON,
         EntityType.ZOMBIFIED_PIGLIN,
