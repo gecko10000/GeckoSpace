@@ -16,11 +16,10 @@ import org.bukkit.event.Listener
 import org.bukkit.event.block.Action
 import org.bukkit.event.player.PlayerInteractEvent
 import org.koin.core.component.inject
-import redempt.redlib.misc.Task
 import java.util.*
 import java.util.concurrent.CompletableFuture
-import kotlin.math.max
 
+@Suppress("UnstableApiUsage")
 class ShifterManager : MyKoinComponent, Listener {
 
     private val plugin: GeckoSpace by inject()
@@ -77,23 +76,16 @@ class ShifterManager : MyKoinComponent, Listener {
 
         val destColumnBlock = destWorld.getBlockAt(player.location)
         alreadyTeleporting += player.uniqueId
-        val startTick = plugin.server.currentTick
         getSafeSpot(destColumnBlock).thenApply { dest ->
             dest ?: return@thenApply run {
                 alreadyTeleporting -= player.uniqueId
                 player.sendActionBar(parseMM("<red>It's not safe to shift here... Try another spot!"))
             }
-            val taskStartTick = plugin.server.currentTick
-            val elapsedTicks = taskStartTick - startTick
-            val delay = max(0, plugin.config.dimensionShifterDelayTicks - elapsedTicks)
-            // TODO: effect for warmup? Maybe centralized system.
-            Task.syncDelayed({ ->
-                dest.setRotation(player.yaw, player.pitch)
-                player.teleportAsync(dest).thenRun {
-                    alreadyTeleporting -= player.uniqueId
-                    player.sendActionBar(parseMM("<green>Shift successful."))
-                }
-            }, delay.toLong())
+            dest.setRotation(player.yaw, player.pitch)
+            player.teleportAsync(dest).thenRun {
+                alreadyTeleporting -= player.uniqueId
+                player.sendActionBar(parseMM("<green>Shift successful."))
+            }
         }
     }
 

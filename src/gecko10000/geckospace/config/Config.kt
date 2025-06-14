@@ -55,5 +55,4 @@ data class Config(
         Material.CACTUS,
         Material.LAVA,
     ),
-    val dimensionShifterDelayTicks: Int = 60,
 )
