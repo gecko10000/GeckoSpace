@@ -4,6 +4,7 @@ import com.nexomc.nexo.api.NexoItems
 import gecko10000.geckolib.extensions.parseMM
 import gecko10000.geckospace.GeckoSpace
 import gecko10000.geckospace.di.MyKoinComponent
+import io.papermc.paper.datacomponent.DataComponentTypes
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.Material
@@ -62,6 +63,7 @@ class ShifterManager : MyKoinComponent, Listener {
     @EventHandler
     private fun PlayerInteractEvent.onShifterUse() {
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return
+        val item = item ?: return
         val id = NexoItems.idFromItem(item)
         if (id != plugin.config.dimensionShifterItemId) return
         if (player.uniqueId in alreadyTeleporting) return
@@ -69,6 +71,10 @@ class ShifterManager : MyKoinComponent, Listener {
         val destWorld = getOppositeWorld(sourceWorld) ?: return run {
             player.sendActionBar(parseMM("<red>You can't use this here..."))
         }
+        if (player.getCooldown(item) > 0) return
+        val cooldown = item.getData(DataComponentTypes.USE_COOLDOWN)
+        cooldown?.let { player.setCooldown(item, (cooldown.seconds() * 20).toInt()) }
+
         val destColumnBlock = destWorld.getBlockAt(player.location)
         alreadyTeleporting += player.uniqueId
         val startTick = plugin.server.currentTick
