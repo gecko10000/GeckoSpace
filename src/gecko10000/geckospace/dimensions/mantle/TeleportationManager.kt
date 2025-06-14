@@ -16,7 +16,9 @@ import org.bukkit.entity.Entity
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
+import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
+import org.bukkit.event.block.BlockPlaceEvent
 import org.bukkit.event.player.PlayerMoveEvent
 import org.bukkit.event.player.PlayerTeleportEvent
 import org.bukkit.event.world.PortalCreateEvent
@@ -29,17 +31,6 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentSkipListSet
 import kotlin.collections.ArrayDeque
-import kotlin.collections.Set
-import kotlin.collections.any
-import kotlin.collections.distinct
-import kotlin.collections.first
-import kotlin.collections.forEach
-import kotlin.collections.isNotEmpty
-import kotlin.collections.map
-import kotlin.collections.mutableSetOf
-import kotlin.collections.plusAssign
-import kotlin.collections.setOf
-import kotlin.collections.toTypedArray
 import kotlin.math.ceil
 
 @Suppress("UnstableApiUsage")
@@ -203,6 +194,16 @@ class TeleportationManager : MyKoinComponent, Listener {
         if (this.entity != null) {
             // TODO: journal entry
         }
+    }
+
+    // Prevent building above nether roof
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
+    private fun BlockPlaceEvent.onPlace() {
+        val world = blockPlaced.world
+        if (!plugin.config.netherWorldPairs.containsValue(world.name)) return
+        val highestBlockY =
+            world.getHighestBlockYAt(blockPlaced.location, HeightMap.WORLD_SURFACE) // includes block being placed
+        isCancelled = highestBlockY == blockPlaced.y
     }
 
     init {
