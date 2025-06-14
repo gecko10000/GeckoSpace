@@ -18,6 +18,7 @@ import org.bukkit.event.player.PlayerInteractEvent
 import org.koin.core.component.inject
 import java.util.*
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentSkipListSet
 
 @Suppress("UnstableApiUsage")
 class ShifterManager : MyKoinComponent, Listener {
@@ -57,7 +58,7 @@ class ShifterManager : MyKoinComponent, Listener {
             .thenApply { iterateDown(block) }
     }
 
-    private val alreadyTeleporting = mutableSetOf<UUID>()
+    private val alreadyTeleporting = ConcurrentSkipListSet<UUID>()
 
     @EventHandler
     private fun PlayerInteractEvent.onShifterUse() {
@@ -65,6 +66,7 @@ class ShifterManager : MyKoinComponent, Listener {
         val item = item ?: return
         val id = NexoItems.idFromItem(item)
         if (id != plugin.config.dimensionShifterItemId) return
+        isCancelled = true
         if (player.uniqueId in alreadyTeleporting) return
         val sourceWorld = player.world
         val destWorld = getOppositeWorld(sourceWorld) ?: return run {
