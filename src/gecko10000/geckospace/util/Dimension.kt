@@ -4,7 +4,8 @@ enum class Dimension {
     MERCURY,
     VENUS,
     EARTH, // overworld
-    MANTLE, // nether
+
+    //MANTLE, // nether -- does not concern rocket
     MOON,
     MARS,
     JUPITER,
