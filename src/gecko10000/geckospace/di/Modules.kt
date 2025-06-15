@@ -7,6 +7,8 @@ import gecko10000.geckospace.dimensions.mantle.ShrineManager
 import gecko10000.geckospace.dimensions.mantle.TeleportationManager
 import gecko10000.geckospace.dimensions.moon.MoonstoneManager
 import gecko10000.geckospace.dimensions.resource.ShifterManager
+import gecko10000.geckospace.transport.RocketManager
+import me.arcaniax.hdb.api.HeadDatabaseAPI
 import org.koin.dsl.module
 
 fun pluginModules(plugin: GeckoSpace) = module {
@@ -20,4 +22,7 @@ fun pluginModules(plugin: GeckoSpace) = module {
     single(createdAtStart = true) { TeleportationManager() }
     // Resource worlds
     single(createdAtStart = true) { ShifterManager() }
+
+    single(createdAtStart = true) { RocketManager() }
+    single { HeadDatabaseAPI() }
 }

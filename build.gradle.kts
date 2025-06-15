@@ -44,6 +44,7 @@ dependencies {
     compileOnly("net.citizensnpcs:citizens-main:2.0.37-SNAPSHOT") {
         exclude(group = "*", module = "*")
     }
+    compileOnly("com.arcaniax:HeadDatabase-API:1.3.2")
 }
 
 kotlin {
