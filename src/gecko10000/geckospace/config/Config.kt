@@ -65,6 +65,8 @@ data class Config(
     ),
     val rocketId: String = "rocket",
     val rocketMenuMessage: Component = parseMM("<gold><b>Press <key:key.jump> to open the launch menu"),
+    val rocketYOffset: Double = 1.0,
+    val rocketSeatYOffset: Double = -0.5,
     val rocketMenuTitle: Component = parseMM("<#258bbe>Rocket"),
     val travelMenuTitle: Component = parseMM("<#258bbe>Travel"),
     val dimensions: Map<Dimension, DimensionInfo> = mapOf(

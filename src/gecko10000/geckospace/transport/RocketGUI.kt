@@ -1,5 +1,6 @@
 package gecko10000.geckospace.transport
 
+import com.nexomc.nexo.mechanics.furniture.FurnitureMechanic
 import gecko10000.geckolib.extensions.parseMM
 import gecko10000.geckospace.GeckoSpace
 import gecko10000.geckospace.di.MyKoinComponent
@@ -12,7 +13,8 @@ import org.koin.core.component.inject
 import redempt.redlib.inventorygui.InventoryGUI
 import redempt.redlib.inventorygui.ItemButton
 
-class RocketGUI(player: Player, rocketEntity: ItemDisplay) : RocketAssociatedGUI(player, rocketEntity),
+class RocketGUI(player: Player, rocketEntity: ItemDisplay) :
+    RocketAssociatedGUI(player, rocketEntity),
     MyKoinComponent {
 
     private companion object {
