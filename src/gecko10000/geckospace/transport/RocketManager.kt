@@ -39,6 +39,7 @@ class RocketManager : MyKoinComponent, Listener {
         const val PARTICLE_HORIZ_OFFSET = 0.38
         const val PARTICLE_VERT_OFFSET = -1.5
         const val RANDOM_FLAME_OFFSET_RANGE = 0.1
+        const val PARTICLE_VELOCITY_MULT = 0.02
         const val LIFTOFF_MULTIPLIER = 0.01
         val SEAT_KEY = NamespacedKey("geckospace", "rocket_seat")
         val TARGET_DIMENSION_KEY = NamespacedKey("geckospace", "target_dimension")
@@ -96,15 +97,15 @@ class RocketManager : MyKoinComponent, Listener {
         }
     }
 
-    private fun doRocketParticles(location: Location) {
+    private fun doRocketParticles(location: Location, i: Int) {
         val center = location.clone().add(0.0, PARTICLE_VERT_OFFSET, 0.0)
 
-        for (i in 1..5) {
+        for (unused in 1..5) {
             val xOffset = Random.nextDouble() * (RANDOM_FLAME_OFFSET_RANGE * 2) - RANDOM_FLAME_OFFSET_RANGE
             val zOffset = Random.nextDouble() * (RANDOM_FLAME_OFFSET_RANGE * 2) - RANDOM_FLAME_OFFSET_RANGE
             ParticleBuilder(Particle.FLAME)
                 .count(0)
-                .offset(xOffset, -1.0, zOffset)
+                .offset(xOffset, -(i * PARTICLE_VELOCITY_MULT), zOffset)
                 .location(center.clone().add(PARTICLE_HORIZ_OFFSET, 0.0, 0.0))
                 .spawn()
                 .location(center.clone().add(-PARTICLE_HORIZ_OFFSET, 0.0, 0.0))
@@ -117,13 +118,14 @@ class RocketManager : MyKoinComponent, Listener {
     }
 
     private fun finishRocket(player: Player) {
+        if (!player.isOnline) return
         val dimensionName =
             player.persistentDataContainer.get(TARGET_DIMENSION_KEY, PersistentDataType.STRING)
                 ?: return
         val targetWorldName = plugin.config.dimensions[Dimension.valueOf(dimensionName)]?.worldName ?: return
         val targetWorld = plugin.server.getWorld(targetWorldName)
         if (targetWorld == null) {
-            plugin.logger.severe("Could not teleport player to $targetWorldName (world not found)")
+            plugin.logger.severe("Could not teleport ${player.name} to $targetWorldName (world not found)")
             return
         }
         player.persistentDataContainer.remove(TARGET_DIMENSION_KEY)
@@ -165,7 +167,7 @@ class RocketManager : MyKoinComponent, Listener {
         val interpolatedLocation: Location = display.location
         // Updates location to show particles at, and shows them
         val particleTask = Task.syncRepeating({ ->
-            doRocketParticles(interpolatedLocation)
+            doRocketParticles(interpolatedLocation, i)
             val diff = (i - 1) * LIFTOFF_MULTIPLIER
             interpolatedLocation.add(0.0, diff, 0.0)
 
@@ -189,15 +191,6 @@ class RocketManager : MyKoinComponent, Listener {
         launchingSeats += seat
     }
 
-    private var ignoreDismount = false
-
-    @EventHandler
-    private fun PlayerQuitEvent.fixDismount() {
-        ignoreDismount = true
-        player.leaveVehicle()
-        ignoreDismount = false
-    }
-
     @EventHandler
     private fun PlayerJoinEvent.onJoinDuringLaunch() {
         val intendedSeat = launchingSeats.firstOrNull {
@@ -205,9 +198,17 @@ class RocketManager : MyKoinComponent, Listener {
                 SEAT_KEY,
                 PersistentDataType.STRING
             ) == player.uniqueId.toString()
-        } ?: return
-        intendedSeat.addPassenger(player)
+        }
+        // Rocket animation finished, player still needs to be teleported to destination.
+        if (intendedSeat == null && player.persistentDataContainer.has(TARGET_DIMENSION_KEY)) {
+            finishRocket(player)
+            return
+        }
+        // Rocket animation not done, re-seat player.
+        intendedSeat?.addPassenger(player)
     }
+
+    private var ignoreDismount = false
 
     @EventHandler
     private fun EntityDismountEvent.onDismountLaunchingRocket() {
@@ -215,6 +216,13 @@ class RocketManager : MyKoinComponent, Listener {
         if (!seat.persistentDataContainer.has(SEAT_KEY)) return
         if (ignoreDismount) return
         isCancelled = true
+    }
+
+    @EventHandler
+    private fun PlayerQuitEvent.ignoreDisconnectDismount() {
+        ignoreDismount = true
+        player.leaveVehicle()
+        ignoreDismount = false
     }
 
 }
