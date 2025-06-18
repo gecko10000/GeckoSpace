@@ -75,4 +75,5 @@ data class Config(
         Dimension.MOON to DimensionInfo(42221, "moon", parseMM("<gradient:grey:white>Moon")),
         Dimension.MARS to DimensionInfo(567, "mars", parseMM("<gradient:#8C4809:#BA6B13>Mars")),
     ),
+    val bedHomeWorld: String = "world",
 )
