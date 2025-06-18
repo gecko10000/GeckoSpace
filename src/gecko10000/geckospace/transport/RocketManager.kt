@@ -7,10 +7,13 @@ import com.nexomc.nexo.api.events.furniture.NexoFurniturePlaceEvent
 import com.nexomc.nexo.mechanics.furniture.FurnitureHelpers
 import com.nexomc.nexo.mechanics.furniture.seats.FurnitureSeat
 import com.nexomc.nexo.utils.drops.Drop
+import gecko10000.geckolib.extensions.parseMM
 import gecko10000.geckospace.GeckoSpace
 import gecko10000.geckospace.di.MyKoinComponent
 import gecko10000.geckospace.util.Dimension
 import io.papermc.paper.entity.TeleportFlag
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.title.Title
 import org.bukkit.Location
 import org.bukkit.NamespacedKey
 import org.bukkit.Particle
@@ -136,6 +139,13 @@ class RocketManager : MyKoinComponent, Listener {
 
     fun launch(player: Player, baseEntity: ItemDisplay, destination: Dimension) {
         val location = baseEntity.location
+        val startingY = location.y
+        if (location.world.getHighestBlockYAt(location) >= startingY.toInt()) {
+            player.showTitle(Title.title(parseMM("<red>The sky is blocked!"), Component.empty()))
+            player.sendMessage(parseMM("<red>Clear a path to the sky to launch!"))
+            player.leaveVehicle()
+            return
+        }
         val rocketItem = FurnitureHelpers.furnitureItem(baseEntity)
         NexoFurniture.remove(
             baseEntity, drop = Drop(
@@ -180,7 +190,7 @@ class RocketManager : MyKoinComponent, Listener {
                 PlayerTeleportEvent.TeleportCause.PLUGIN,
                 TeleportFlag.EntityState.RETAIN_PASSENGERS
             )
-            if (display.location.y > display.world.maxHeight) {
+            if (display.location.y > startingY + plugin.config.rocketLaunchHeight) {
                 display.remove()
                 seat.remove()
                 t.cancel()
