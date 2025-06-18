@@ -38,7 +38,7 @@ import kotlin.random.Random
 class RocketManager : MyKoinComponent, Listener {
 
     private companion object {
-        const val DURATION = 10
+        const val DURATION = 5
         const val PARTICLE_HORIZ_OFFSET = 0.38
         const val PARTICLE_VERT_OFFSET = -1.5
         const val RANDOM_FLAME_OFFSET_RANGE = 0.1
