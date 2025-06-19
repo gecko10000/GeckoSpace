@@ -296,6 +296,9 @@ class RocketManager : MyKoinComponent, Listener {
             remainingDistance -= toTravel
         }, 0L, DURATION.toLong())
         // Updates location to show particles at, and shows them
+        // NOTE: we create this task AFTER the landing animation task,
+        // because otherwise the particles move down too quickly
+        // (likely because this task would be run before the change by the above task)
         particleTask = Task.syncRepeating({ ->
             doRocketParticles(interpolatedLocation, i)
             val previousRemainingDistance = remainingDistance * (1 / (1 - LAND_ANIMATION_DECAY))
